@@ -160,9 +160,6 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <div id="googleLists"></div>
     <div id="googleStatus"></div>
 
-    <div class="sec" id="appleSec"><span>Apple Reminders</span></div>
-    <div id="appleLists"></div>
-    <div id="appleStatus"></div>
 
     <div class="sec"><span>View</span></div>
     <label class="toggle"><input type="checkbox" id="showDone"><span class="nm">Show completed tasks</span></label>
@@ -212,7 +209,6 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <h2>Setup and help</h2>
     <div class="tabs" role="tablist">
       <button data-tab="google" aria-selected="true">Google Tasks</button>
-      <button data-tab="apple" aria-selected="false">Apple Reminders</button>
       <button data-tab="tips" aria-selected="false">Tips</button>
     </div>
 
@@ -227,31 +223,13 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <p style="margin-top:12px">Google lists show up in the sidebar. Untick a list to hide it. Hidden lists are not changed or deleted.</p>
     </section>
 
-    <section data-pane="apple" hidden>
-      <h3>How Apple Reminders gets in</h3>
-      <p>Apple doesn't let websites read Reminders. So an iPhone Shortcut reads them and hands them to this app. It is a copy: tick things off in Apple Reminders, then run the Shortcut again to refresh. When Google is connected, the copy is saved to a Google list so your PC sees it too.</p>
-      <h3>Make the Shortcut (once, on your iPhone)</h3>
-      <ol>
-        <li>Open the <b>Shortcuts</b> app, tap <b>+</b>, name it <b>Send Reminders</b>.</li>
-        <li>Add <b>Find Reminders</b>. Add the filter <i>Is Completed is No</i>.</li>
-        <li>Add <b>Combine Text</b>: combine <i>Reminders</i> with <i>New Lines</i>.</li>
-        <li>Add <b>Copy to Clipboard</b>.</li>
-        <li>Add <b>Open URLs</b> with: <code id="appleUrl"></code></li>
-        <li>Want each Apple list separate? Make one Shortcut per list: filter Find Reminders by <i>List</i>, and before Copy to Clipboard add a <b>Text</b> action with <code>## Groceries</code> (your list name) on the first line and the Combined Text below it.</li>
-        <li>Run it. This app opens with a <b>Paste</b> button. Tap it.</li>
-      </ol>
-      <h3>Or paste them in</h3>
-      <p>One reminder per line, as <code>Title|List|Due</code> (List and Due are optional).</p>
-      <textarea id="applePaste" rows="4" placeholder="Buy milk|Groceries&#10;Call dentist|Personal|Tomorrow"></textarea>
-      <div class="row" style="margin-top:8px"><button class="btn" id="applePasteBtn">Import</button><button class="btn" id="appleClear">Remove Apple copy</button></div>
-    </section>
 
     <section data-pane="tips" hidden>
       <h3>Phone</h3>
       <p>In Safari, tap Share, then <b>Add to Home Screen</b>. It then opens like an app, straight to the "Add a task" box.</p>
       <h3>PC</h3>
       <p>Add <b>#tags</b> anywhere in a task's name, like <code>Call venue #wedding</code>. Tap a tag to see only those tasks, across all lists.</p>
-      <p>Drag tasks to reorder them or drop them into another list. Click a task's text to rename it. Dragging an Apple reminder into another list makes a copy there.</p>
+      <p>Drag tasks to reorder them or drop them into another list. Click a task's text to rename it.</p>
       <h3>Where things are saved</h3>
       <p>Google lists live in your Google account. "Typed here" lists live only in this browser. Once Google is connected, add to a Google list so it shows on both phone and PC.</p>
     </section>
@@ -486,13 +464,8 @@ async function refresh() {
         state.mirrorId = gl.find(l => l.title === MIRROR)?.id || null;
         const old = new Map(state.lists.filter(l => l.source === 'google').map(l => [l.id, l.tasks]));
         for (const l of gl) if (l.id !== state.mirrorId) lists.push({ key: 'google:' + l.id, source: 'google', id: l.id, name: l.title, writable: true, tasks: old.get(l.id) || null });
-        try { await Apple.pushMirror(); } catch (e) { toast(e.message); }
-        if (state.mirrorId) appleFromGoogle = (await G.tasks(state.mirrorId)).filter(t => !t.done).map(t => Apple.fromNote(t));
       } catch (e) { toast(e.message); }
     }
-    const ap = Apple.local();
-    if (appleFromGoogle) lists.push(...appleLists(appleFromGoogle, 'google'));
-    else if (ap) lists.push(...appleLists(ap.items, 'local'));
     state.lists = lists; state.loadedAt = Date.now();
     render();
     await Promise.all(lists.filter(l => l.source === 'google' && isVisible(l)).map(loadGoogleList));
@@ -575,20 +548,10 @@ function renderSide() {
   const by = s => state.lists.filter(l => l.source === s);
   $('#localLists').replaceChildren(...by('local').map(sideToggle));
   $('#googleLists').replaceChildren(...by('google').map(sideToggle));
-  $('#appleLists').replaceChildren(...by('apple').map(sideToggle));
-  const hasApple = by('apple').length > 0; $('#appleSec').hidden = $('#appleStatus').hidden = !hasApple;
   const gs = $('#googleStatus');
   if (G.ok()) gs.replaceChildren(h('button', { class: 'linkbtn', text: '+ New Google list', onclick: newGoogleList }));
   else if (G.clientId()) gs.replaceChildren(h('div', { class: 'note', text: LS.get('gconsented', false) ? 'Sign-in timed out (Google asks again every hour).' : 'Not connected yet.' }), h('button', { class: 'btn small primary', style: 'margin:4px 6px', text: 'Connect Google', onclick: connectGoogle }));
   else gs.replaceChildren(h('div', { class: 'note', text: 'Not set up yet.' }), h('button', { class: 'linkbtn', text: 'Set up Google Tasks', onclick: () => openSetup('google') }));
-  const as = $('#appleStatus'); const ap = Apple.local();
-  const when = ap ? new Date(ap.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
-  const fromG = by('apple')[0]?.from === 'google';
-  as.replaceChildren(
-    h('div', { class: 'note', text: by('apple').length ? (fromG ? 'Copy saved in Google.' : 'Copy on this device' + (when ? ', from ' + when : '') + '.') + ' Read only.' : 'Nothing imported yet.' }),
-    h('button', { class: 'linkbtn', text: 'Paste copied reminders', onclick: () => { closeMenu(); pasteReminders(); } }),
-    h('button', { class: 'linkbtn', text: 'How to bring them in', onclick: () => openSetup('apple') })
-  );
   $('#showDone').checked = !!prefs.showDone;
   // quick-add targets
   const sel = $('#quickTarget'); const opts = writableVisible();
@@ -838,7 +801,6 @@ async function newGoogleList() {
 // ---------- setup dialog ----------
 function openSetup(tab = 'google') {
   $('#clientId').value = G.clientId();
-  $('#appleUrl').textContent = location.origin + location.pathname + '#paste';
   selectTab(tab); const d = $('#setup'); if (!d.open) d.showModal();
 }
 function selectTab(tab) {
@@ -854,16 +816,6 @@ $('#saveClientId').addEventListener('click', async () => {
   LS.set('gclient', v); $('#setup').close(); await connectGoogle();
 });
 $('#disconnectGoogle').addEventListener('click', async () => { G.disconnect(); $('#setup').close(); toast('Google disconnected'); await refresh(); });
-$('#applePasteBtn').addEventListener('click', async () => {
-  const items = Apple.parse($('#applePaste').value);
-  if (!items.length) { toast('Nothing to import'); return; }
-  Apple.save(items); $('#applePaste').value = ''; $('#setup').close(); toast(`Imported ${items.length} reminders`); await refresh();
-});
-$('#appleClear').addEventListener('click', async () => {
-  LS.del('apple'); LS.del('appleDirty');
-  if (G.ok() && state.mirrorId) { try { await G.api(`users/@me/lists/${state.mirrorId}`, { method: 'DELETE' }); state.mirrorId = null; } catch (e) { toast(e.message); } }
-  $('#setup').close(); toast('Apple copy removed'); await refresh();
-});
 
 // ---------- wiring ----------
 $('#quick').addEventListener('submit', e => { e.preventDefault(); const i = $('#quickInput'); quickAdd(listBy($('#quickTarget').value), i.value); i.value = ''; i.focus(); });
@@ -874,7 +826,7 @@ $('#newLocal').addEventListener('click', () => { const n = prompt('Name for the 
 const closeMenu = () => $('#app').classList.remove('open');
 $('#menuBtn').addEventListener('click', () => $('#app').classList.toggle('open'));
 $('#scrim').addEventListener('click', closeMenu);
-window.addEventListener('hashchange', () => { if (/^#(apple=|paste)/.test(location.hash)) { importFromHash(); refresh(); } else if (/^#add=/.test(location.hash)) { readAddRequest(); processPendingAdd(); } });
+window.addEventListener('hashchange', () => { if (/^#add=/.test(location.hash)) { readAddRequest(); processPendingAdd(); } });
 window.addEventListener('focus', () => { if (Date.now() - state.loadedAt > 60000) refresh(); });
 
 let pastePending = false;
@@ -906,7 +858,9 @@ document.addEventListener('click', async e => {
 }, true);
 setInterval(() => { if (!G.ok() && LS.get('gconsented', false)) renderSide(), renderBanner(); }, 60000);
 
-importFromHash();
+// Apple Reminders was removed at the owner's request: clear any copy saved on this device.
+LS.del('apple'); LS.del('appleDirty');
+if (/^#(apple=|paste)/.test(location.hash)) history.replaceState(null, '', location.pathname);
 readAddRequest();
 refresh();
 if (!G.ok() && G.clientId() && LS.get('gconsented', false)) { /* token expired: wait for a tap, since browsers block pop-ups without one */ }
