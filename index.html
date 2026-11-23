@@ -23,6 +23,7 @@
     --accent:#5b8dff; --google:#6ea8ff; --apple:#ff7a63; --local:#a68bff; --danger:#ff6b6b; --shadow:0 1px 2px rgba(0,0,0,.4); }
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -153,7 +154,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
     <div id="googleLists"></div>
     <div id="googleStatus"></div>
 
-    <div class="sec"><span>Apple Reminders</span></div>
+    <div class="sec" id="appleSec"><span>Apple Reminders</span></div>
     <div id="appleLists"></div>
     <div id="appleStatus"></div>
 
@@ -489,6 +490,28 @@ async function refresh() {
     await Promise.all(lists.filter(l => l.source === 'google' && isVisible(l)).map(loadGoogleList));
     render();
   } finally { loading = false; }
+  await processPendingAdd();
+}
+
+// ---------- adding from Siri / a Shortcut: ?add=Buy%20milk&list=Shopping ----------
+let pendingAdd = null;
+function readAddRequest() {
+  const q = new URLSearchParams(location.search);
+  let title = q.get('add'), list = q.get('list');
+  const m = /^#add=([^&]*)(?:&list=(.*))?$/s.exec(location.hash);
+  if (m) { try { title = decodeURIComponent(m[1]); list = m[2] ? decodeURIComponent(m[2]) : null; } catch { title = m[1]; } }
+  if (q.has('add') || m) history.replaceState(null, '', location.pathname);
+  if (title && title.trim()) pendingAdd = { title: title.trim(), list: list && list.trim() };
+}
+async function processPendingAdd() {
+  if (!pendingAdd) return;
+  if (!G.ok()) { render(); return; }
+  const gl = state.lists.filter(l => l.source === 'google');
+  const cur = listBy(prefs.target);
+  const target = (pendingAdd.list && gl.find(l => norm(l.name) === norm(pendingAdd.list))) || (cur && cur.source === 'google' ? cur : null) || gl[0];
+  if (!target) return;
+  const { title } = pendingAdd; pendingAdd = null;
+  await quickAdd(target, title);
 }
 async function loadGoogleList(l) {
   try { l.tasks = await G.tasks(l.id); } catch (e) { if (!l.tasks) l.tasks = []; toast(e.message); }
@@ -544,6 +567,7 @@ function renderSide() {
   $('#localLists').replaceChildren(...by('local').map(sideToggle));
   $('#googleLists').replaceChildren(...by('google').map(sideToggle));
   $('#appleLists').replaceChildren(...by('apple').map(sideToggle));
+  const hasApple = by('apple').length > 0; $('#appleSec').hidden = $('#appleStatus').hidden = !hasApple;
   const gs = $('#googleStatus');
   if (G.ok()) gs.replaceChildren(h('button', { class: 'linkbtn', text: '+ New Google list', onclick: newGoogleList }));
   else if (G.clientId()) gs.replaceChildren(h('div', { class: 'note', text: LS.get('gconsented', false) ? 'Sign-in timed out (Google asks again every hour).' : 'Not connected yet.' }), h('button', { class: 'btn small primary', style: 'margin:4px 6px', text: 'Connect Google', onclick: connectGoogle }));
@@ -653,15 +677,14 @@ function renderBanner() {
   if (pastePending) kids.push(h('div', { class: 'banner apple' },
     h('div', { class: 'msg' }, h('b', { text: 'Your reminders are copied' }), 'Tap Paste, then tap "Paste" again if your iPhone asks.'),
     h('button', { class: 'btn primary', text: 'Paste', onclick: pasteReminders })));
-  if (!G.ok()) {
+  if (pendingAdd && !G.ok()) kids.push(h('div', { class: 'banner' },
+    h('div', { class: 'msg' }, h('b', { text: 'Add “' + pendingAdd.title + '”' }), 'Google needs a quick reconnect first.'),
+    h('button', { class: 'btn primary', text: 'Add it', onclick: connectGoogle })));
+  else if (!G.ok()) {
     const timedOut = G.clientId() && LS.get('gconsented', false);
     kids.push(h('div', { class: 'banner' },
       h('div', { class: 'msg' }, h('b', { text: timedOut ? 'Google sign-in timed out' : 'Connect Google Tasks' }), timedOut ? 'Google asks again every hour. Tap anywhere to reconnect.' : 'Show your Google lists here, on this device.'),
       h('button', { class: 'btn primary', text: 'Connect', onclick: connectGoogle })));
-  } else if (!state.lists.some(l => l.source === 'apple')) {
-    kids.push(h('div', { class: 'banner apple' },
-      h('div', { class: 'msg' }, h('b', { text: 'Bring in Apple Reminders' }), 'Uses a Shortcut you make once in the iPhone Shortcuts app.'),
-      h('button', { class: 'btn', text: 'Show me how', onclick: () => openSetup('apple') })));
   }
   b.replaceChildren(...kids);
 }
@@ -818,7 +841,7 @@ $('#newLocal').addEventListener('click', () => { const n = prompt('Name for the 
 const closeMenu = () => $('#app').classList.remove('open');
 $('#menuBtn').addEventListener('click', () => $('#app').classList.toggle('open'));
 $('#scrim').addEventListener('click', closeMenu);
-window.addEventListener('hashchange', () => { if (/^#(apple=|paste)/.test(location.hash)) { importFromHash(); refresh(); } });
+window.addEventListener('hashchange', () => { if (/^#(apple=|paste)/.test(location.hash)) { importFromHash(); refresh(); } else if (/^#add=/.test(location.hash)) { readAddRequest(); processPendingAdd(); } });
 window.addEventListener('focus', () => { if (Date.now() - state.loadedAt > 60000) refresh(); });
 
 let pastePending = false;
@@ -851,6 +874,7 @@ document.addEventListener('click', async e => {
 setInterval(() => { if (!G.ok() && LS.get('gconsented', false)) renderSide(), renderBanner(); }, 60000);
 
 importFromHash();
+readAddRequest();
 refresh();
 if (!G.ok() && G.clientId() && LS.get('gconsented', false)) { /* token expired: wait for a tap, since browsers block pop-ups without one */ }
 if (matchMedia('(min-width:761px)').matches) $('#quickInput').focus();
