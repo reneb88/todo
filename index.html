@@ -102,6 +102,12 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .seg{display:inline-flex;background:var(--panel2);border-radius:10px;padding:3px}
 .seg button{border:0;background:transparent;border-radius:8px;padding:6px 14px;font-size:14px;color:var(--muted)}
 .seg button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow);font-weight:600}
+.tagbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-basis:100%}
+.tag{display:inline-flex;align-items:center;border:0;border-radius:999px;padding:2px 9px;font-size:12.5px;font-weight:550;background:hsl(var(--h) 80% 92%);color:hsl(var(--h) 55% 30%);cursor:pointer}
+.tag.on{outline:2px solid hsl(var(--h) 55% 45%)}
+.tag.all{--h:220;background:var(--panel2);color:var(--muted)}
+.tag.all.on{outline-color:var(--ink);color:var(--ink)}
+@media (prefers-color-scheme: dark){.tag{background:hsl(var(--h) 35% 24%);color:hsl(var(--h) 80% 82%)}}
 .dupnote{font-size:13.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
 .col.wide{width:min(760px,100%);margin:0 auto}
 .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
@@ -185,6 +191,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
         <button data-view="all" aria-pressed="false">All tasks</button>
       </div>
       <div class="dupnote" id="dupnote"></div>
+      <div class="tagbar" id="tagbar"></div>
     </div>
     <div id="banner"></div>
     <div class="board" id="board"></div>
@@ -243,6 +250,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <h3>Phone</h3>
       <p>In Safari, tap Share, then <b>Add to Home Screen</b>. It then opens like an app, straight to the "Add a task" box.</p>
       <h3>PC</h3>
+      <p>Add <b>#tags</b> anywhere in a task's name, like <code>Call venue #wedding</code>. Tap a tag to see only those tasks, across all lists.</p>
       <p>Drag tasks to reorder them or drop them into another list. Click a task's text to rename it. Dragging an Apple reminder into another list makes a copy there.</p>
       <h3>Where things are saved</h3>
       <p>Google lists live in your Google account. "Typed here" lists live only in this browser. Once Google is connected, add to a Google list so it shows on both phone and PC.</p>
@@ -280,7 +288,7 @@ let toastTimer;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200); }
 
 const MIRROR = 'Apple Reminders (copy)';
-const prefs = Object.assign({ hidden: {}, showDone: false, target: null, view: 'lists' }, LS.get('prefs', {}));
+const prefs = Object.assign({ hidden: {}, showDone: false, target: null, view: 'lists', tag: null }, LS.get('prefs', {}));
 const savePrefs = () => LS.set('prefs', prefs);
 
 // state.lists: [{key, source:'local'|'google'|'apple', id, name, writable, tasks:[] | null}]
@@ -501,6 +509,7 @@ function readAddRequest() {
   const m = /^#add=([^&]*)(?:&list=(.*))?$/s.exec(location.hash);
   if (m) { try { title = decodeURIComponent(m[1]); list = m[2] ? decodeURIComponent(m[2]) : null; } catch { title = m[1]; } }
   if (q.has('add') || m) history.replaceState(null, '', location.pathname);
+  if (title) title = title.replace(/\bhash ?tag\s+/gi, '#');
   if (title && title.trim()) pendingAdd = { title: title.trim(), list: list && list.trim() };
 }
 async function processPendingAdd() {
@@ -586,6 +595,31 @@ function renderSide() {
   if (!opts.some(l => l.key === prefs.target)) prefs.target = (opts.find(l => l.source === 'google') || opts[0])?.key || null;
   sel.replaceChildren(...opts.map(l => { const o = h('option', { value: l.key, text: l.name + (l.source === 'local' ? ' (this device)' : '') }); o.selected = l.key === prefs.target; return o; }));
 }
+// ---------- #tags: written in the task name, e.g. "Call venue #team" ----------
+const TAG_RE = /(^|\s)#([\p{L}\p{N}_-]+)/gu;
+const tagsOf = title => [...(title || '').matchAll(TAG_RE)].map(m => m[2].toLowerCase());
+const stripTags = title => (title || '').replace(TAG_RE, '$1').replace(/\s{2,}/g, ' ').trim();
+const hueOf = tag => { let x = 0; for (const c of tag) x = (x * 31 + c.codePointAt(0)) % 360; return x; };
+function tagChip(tag, extra = '') {
+  return h('button', { class: 'tag' + extra + (prefs.tag === tag ? ' on' : ''), style: '--h:' + hueOf(tag), text: '#' + tag,
+    onclick: e => { e.stopPropagation(); prefs.tag = prefs.tag === tag ? null : tag; savePrefs(); render(); } });
+}
+const tagMatch = t => !prefs.tag || tagsOf(t.title).includes(prefs.tag);
+function renderTagbar() {
+  const all = new Set();
+  for (const l of state.lists.filter(isVisible)) for (const t of (l.tasks || [])) if (!t.done) tagsOf(t.title).forEach(x => all.add(x));
+  if (prefs.tag && !all.has(prefs.tag)) all.add(prefs.tag);
+  const el = $('#tagbar');
+  if (!all.size) { el.replaceChildren(); return; }
+  const allBtn = h('button', { class: 'tag all' + (prefs.tag ? '' : ' on'), text: 'All tags', onclick: () => { prefs.tag = null; savePrefs(); render(); } });
+  el.replaceChildren(allBtn, ...[...all].sort().map(x => tagChip(x)));
+}
+function titleWithTags(title, onEdit) {
+  const tags = tagsOf(title);
+  const el = h('div', { class: 'title', text: stripTags(title) || title });
+  if (onEdit) el.addEventListener('click', onEdit);
+  return [el, tags.length ? h('div', { class: 'chips' }, ...tags.map(x => tagChip(x))) : null];
+}
 function fmtDue(due) {
   if (!due) return null;
   const d = new Date(due);
@@ -599,10 +633,9 @@ function taskItem(list, t) {
   const cb = h('input', { type: 'checkbox', 'aria-label': 'Done' }); cb.checked = t.done;
   if (list.source === 'apple') cb.title = 'Hides it here. It stays open in Apple Reminders.';
   cb.addEventListener('change', () => updateTask(list, t, { done: cb.checked }));
-  const title = h('div', { class: 'title', text: t.title });
-  if (list.writable) title.addEventListener('click', () => startEdit(list, t, title));
+  const [title, tagRow] = titleWithTags(t.title, list.writable ? () => startEdit(list, t, title) : null);
   const due = fmtDue(t.due);
-  const body = h('div', { class: 'body' }, title, due ? h('div', { class: 'meta' + (due.overdue && !t.done ? ' overdue' : ''), text: due.text }) : null);
+  const body = h('div', { class: 'body' }, title, tagRow, due ? h('div', { class: 'meta' + (due.overdue && !t.done ? ' overdue' : ''), text: due.text }) : null);
   const del = list.writable ? h('button', { class: 'del', title: 'Delete', 'aria-label': 'Delete', text: '×', onclick: async () => {
     list.tasks = list.tasks.filter(x => x !== t); render();
     try { await deleteTask(list, t); } catch (e) { toast(e.message); await reload(list); render(); }
@@ -630,10 +663,11 @@ function render() {
   document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === prefs.view)));
   renderDupNote();
   renderBanner();
+  renderTagbar();
   if (!vis.length) { board.replaceChildren(h('div', { class: 'welcome', text: 'All lists are hidden. Tick a list in the sidebar to show it.' })); return; }
   if (prefs.view === 'all') return renderAll(board);
   board.replaceChildren(...vis.map(l => {
-    const tasks = (l.tasks || []).filter(t => prefs.showDone || !t.done);
+    const tasks = (l.tasks || []).filter(t => (prefs.showDone || !t.done) && tagMatch(t));
     const ul = h('ul', { class: 'tasks', 'data-key': l.key }, ...tasks.map(t => taskItem(l, t)));
     if (l.tasks === null) ul.append(h('li', { class: 'empty', text: 'Loading…' }));
     else if (!tasks.length) ul.append(h('li', { class: 'empty', 'data-empty': '1', text: l.writable ? 'Nothing here. Drop a task or add one below.' : 'No open reminders.' }));
@@ -694,7 +728,7 @@ function renderDupNote() {
   el.replaceChildren(h('span', { text: n === 1 ? '1 task appears more than once.' : `${n} tasks appear more than once.` }), h('button', { class: 'linkbtn', text: 'Review duplicates', onclick: openDupes }));
 }
 function renderAll(board) {
-  const gs = taskGroups().sort((a, b) => (a.done - b.done) || (dueOf(a) - dueOf(b)) || (a.order - b.order));
+  const gs = taskGroups().filter(g => tagMatch(g)).sort((a, b) => (a.done - b.done) || (dueOf(a) - dueOf(b)) || (a.order - b.order));
   const ul = h('ul', { class: 'tasks' }, ...gs.map(groupItem));
   if (!gs.length) ul.append(h('li', { class: 'empty', text: 'Nothing to do in the lists you are showing.' }));
   const loadingN = state.lists.filter(l => isVisible(l) && l.tasks === null).length;
@@ -710,12 +744,11 @@ function groupItem(g) {
   const cb = h('input', { type: 'checkbox', 'aria-label': 'Done' }); cb.checked = g.done;
   const tickable = writable.length ? writable : g.copies;
   cb.addEventListener('change', () => tickable.forEach(c => updateTask(c.list, c.task, { done: cb.checked })));
-  const title = h('div', { class: 'title', text: g.title });
-  if (writable.length) title.addEventListener('click', () => startEditGroup(writable, title, g.title));
+  const [title, tagRow] = titleWithTags(g.title, writable.length ? () => startEditGroup(writable, title, g.title) : null);
   const due = fmtDue(g.copies.map(c => c.task.due).find(Boolean));
   const chips = h('div', { class: 'chips' }, ...g.copies.map(c => h('span', { class: 'chip' }, h('span', { class: 'dot ' + c.list.source }), c.list.name)),
     writable.length > 1 ? h('span', { class: 'chip dup', text: writable.length + ' copies' }) : null);
-  const body = h('div', { class: 'body' }, title, due ? h('div', { class: 'meta' + (due.overdue && !g.done ? ' overdue' : ''), text: due.text }) : null, chips);
+  const body = h('div', { class: 'body' }, title, tagRow, due ? h('div', { class: 'meta' + (due.overdue && !g.done ? ' overdue' : ''), text: due.text }) : null, chips);
   const del = writable.length ? h('button', { class: 'del', title: 'Delete', 'aria-label': 'Delete', text: '×', onclick: async () => {
     for (const c of writable) c.list.tasks = c.list.tasks.filter(x => x !== c.task);
     render();
