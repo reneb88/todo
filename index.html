@@ -225,11 +225,12 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <h3>Make the Shortcut (once, on your iPhone)</h3>
       <ol>
         <li>Open the <b>Shortcuts</b> app, tap <b>+</b>, name it <b>Send Reminders</b>.</li>
-        <li>Add <b>Find Reminders</b>. Set the filter to <i>Is Not Completed</i>.</li>
-        <li>Add <b>Repeat with Each</b>. Inside it add a <b>Text</b> action containing: <code>Title|List|Due Date</code>, picking each word from the <i>Repeat Item</i> variables, with a <code>|</code> between them.</li>
-        <li>After the repeat, add <b>Combine Text</b> (Repeat Results, separator <i>New Lines</i>).</li>
+        <li>Add <b>Find Reminders</b>. Add the filter <i>Is Completed is No</i>, and turn on <b>Limit</b> (300).</li>
+        <li>Add <b>Combine Text</b>: combine <i>Reminders</i> with <i>New Lines</i>.</li>
         <li>Add <b>URL Encode</b> (Encode the Combined Text).</li>
-        <li>Add <b>Open URLs</b> with: <code id="appleUrl"></code> followed by the <i>URL Encoded Text</i> variable.</li>
+        <li>Add a <b>URL</b> action with: <code id="appleUrl"></code> followed by the <i>URL Encoded Text</i> variable.</li>
+        <li>Add <b>Open URLs</b>.</li>
+        <li>Very long list? Use <b>Copy to Clipboard</b> instead of the last three steps, then paste below.</li>
         <li>Run it. This app opens and says how many reminders came in.</li>
       </ol>
       <h3>Or paste them in</h3>
