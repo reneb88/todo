@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>All My Tasks</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tasks">
+<meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#ffffff; --panel2:#efeee9; --ink:#1d1d1f; --muted:#6b6b70; --line:#e2e0da;
+  --accent:#2f6fed; --accent-ink:#fff; --google:#1a73e8; --apple:#e0533d; --local:#7a5af5;
+  --danger:#c62828; --shadow:0 1px 2px rgba(0,0,0,.06),0 2px 8px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#16171a; --panel:#202226; --panel2:#2a2c31; --ink:#ececee; --muted:#9b9ca3; --line:#33353b;
+    --accent:#5b8dff; --google:#6ea8ff; --apple:#ff7a63; --local:#a68bff; --danger:#ff6b6b; --shadow:0 1px 2px rgba(0,0,0,.4); }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.app{display:grid;grid-template-columns:270px 1fr;height:100vh;height:100dvh}
+/* Sidebar */
+.side{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:16px 14px 24px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;margin:2px 4px 16px}
+.brand img{width:26px;height:26px}
+.sec{margin:18px 0 6px;padding:0 4px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;flex:none}
+.dot.google{background:var(--google)} .dot.apple{background:var(--apple)} .dot.local{background:var(--local)}
+.toggle{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:8px;cursor:pointer;user-select:none}
+.toggle:hover{background:var(--panel2)}
+.toggle input{width:17px;height:17px;accent-color:var(--accent);margin:0;flex:none}
+.toggle .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toggle .ct{color:var(--muted);font-size:12px}
+.note{font-size:12.5px;color:var(--muted);padding:4px 6px;line-height:1.45}
+.linkbtn{background:none;border:0;color:var(--accent);padding:4px 6px;font-size:13px;text-align:left}
+.linkbtn:hover{text-decoration:underline}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 12px;font-size:14px}
+.btn:hover{background:var(--panel2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{padding:4px 9px;font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* Main */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.top{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--bg)}
+.menu.iconbtn{display:none}
+.quick{flex:1;display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px 6px 5px 12px;box-shadow:var(--shadow);min-width:0}
+.quick input{flex:1;border:0;background:transparent;outline:none;padding:7px 0;font-size:16px;min-width:0}
+.quick select{border:0;background:var(--panel2);border-radius:8px;padding:7px 8px;max-width:42%;font-size:14px}
+.quick button{border:0;background:var(--accent);color:var(--accent-ink);border-radius:9px;padding:7px 14px;font-weight:600}
+.iconbtn{background:none;border:1px solid transparent;border-radius:9px;padding:7px;color:var(--muted);display:inline-flex}
+.iconbtn:hover{background:var(--panel2);color:var(--ink)}
+.board{flex:1;overflow:auto;display:flex;gap:14px;padding:16px 18px 40px;align-items:flex-start}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:310px;flex:none;display:flex;flex-direction:column;max-height:100%;box-shadow:var(--shadow)}
+.colhead{display:flex;align-items:center;gap:6px;padding:12px 14px 8px;font-weight:650}
+.colhead .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.colhead .ct{color:var(--muted);font-weight:500;font-size:13px}
+.colsub{font-size:12px;color:var(--muted);padding:0 14px 6px}
+ul.tasks{list-style:none;margin:0;padding:4px 8px 8px;min-height:44px;overflow-y:auto;flex:1}
+li.task{display:flex;align-items:flex-start;gap:9px;padding:8px 8px;border-radius:9px;background:var(--panel);border:1px solid transparent;touch-action:manipulation}
+li.task:hover{background:var(--panel2)}
+li.task.sub{margin-left:22px}
+li.task input[type=checkbox]{width:18px;height:18px;margin:1px 0 0;accent-color:var(--accent);flex:none}
+li.task .body{flex:1;min-width:0}
+li.task .title{word-wrap:break-word;cursor:text}
+li.task.done .title{color:var(--muted);text-decoration:line-through}
+li.task .meta{font-size:12px;color:var(--muted);margin-top:2px}
+li.task .meta.overdue{color:var(--danger)}
+li.task .del{opacity:0;background:none;border:0;color:var(--muted);padding:0 2px;font-size:18px;line-height:1}
+li.task:hover .del{opacity:1}
+li.task .edit{width:100%;border:1px solid var(--accent);border-radius:6px;padding:2px 6px;background:var(--panel);outline:none}
+.ghost{opacity:.35}
+.chosen{box-shadow:0 6px 18px rgba(0,0,0,.18);border-color:var(--line)!important}
+.addrow{padding:4px 10px 12px}
+.addrow input{width:100%;border:1px dashed var(--line);background:transparent;border-radius:9px;padding:7px 10px;outline:none}
+.addrow input:focus{border-style:solid;border-color:var(--accent)}
+.empty{color:var(--muted);font-size:13px;padding:8px 10px}
+.welcome{max-width:520px;margin:30px auto;color:var(--muted);text-align:center}
+/* Dialog */
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:0;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 40px)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dlg{padding:20px 22px;overflow-y:auto}
+.dlg h2{margin:0 0 4px;font-size:19px}
+.dlg h3{margin:20px 0 6px;font-size:15px}
+.dlg p,.dlg li{color:var(--muted);font-size:14px}
+.dlg ol{padding-left:20px}
+.dlg input[type=text],.dlg textarea{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:8px 10px}
+.dlg code{background:var(--panel2);padding:1px 5px;border-radius:5px;font-size:13px;color:var(--ink);word-break:break-all}
+.tabs{display:flex;gap:6px;margin:12px 0 4px}
+.tabs button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:13px}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1}
+.scrim{display:none}
+/* Phone */
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;inset:0 auto 0 0;width:84vw;max-width:320px;z-index:30;transform:translateX(-105%);transition:transform .2s;padding-top:calc(16px + env(safe-area-inset-top))}
+  .app.open .side{transform:none}
+  .app.open .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20}
+  .menu.iconbtn{display:inline-flex}
+  .top{position:sticky;top:0;z-index:10;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top));flex-wrap:wrap}
+  .top .ttl{display:block}
+  .quick{order:3;flex-basis:100%}
+  .board{flex-direction:column;align-items:stretch;padding:12px 12px calc(40px + env(safe-area-inset-bottom));gap:12px}
+  .col{width:auto;max-height:none}
+  ul.tasks{overflow:visible}
+  li.task .del{opacity:.6}
+  li.task{padding:10px 8px}
+}
+.ttl{display:none;font-weight:700;flex:1}
+</style>
+<script src="Sortable.min.js"></script>
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side" id="side">
+    <div class="brand"><img src="icon.svg" alt="">All My Tasks</div>
+
+    <div class="sec"><span>Typed here</span></div>
+    <div id="localLists"></div>
+    <button class="linkbtn" id="newLocal">+ New list</button>
+
+    <div class="sec"><span>Google Tasks</span></div>
+    <div id="googleLists"></div>
+    <div id="googleStatus"></div>
+
+    <div class="sec"><span>Apple Reminders</span></div>
+    <div id="appleLists"></div>
+    <div id="appleStatus"></div>
+
+    <div class="sec"><span>View</span></div>
+    <label class="toggle"><input type="checkbox" id="showDone"><span class="nm">Show completed tasks</span></label>
+    <button class="linkbtn" id="openSetup">Setup and help</button>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <div class="top">
+      <button class="menu iconbtn" id="menuBtn" aria-label="Lists">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <span class="ttl">All My Tasks</span>
+      <form class="quick" id="quick" autocomplete="off">
+        <input id="quickInput" placeholder="Add a task…" enterkeyhint="done" aria-label="New task">
+        <select id="quickTarget" aria-label="Add to list"></select>
+        <button type="submit">Add</button>
+      </form>
+      <button class="iconbtn" id="refreshBtn" title="Refresh" aria-label="Refresh">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      </button>
+    </div>
+    <div class="board" id="board"></div>
+  </main>
+</div>
+
+<dialog id="setup">
+  <div class="dlg">
+    <h2>Setup and help</h2>
+    <div class="tabs" role="tablist">
+      <button data-tab="google" aria-selected="true">Google Tasks</button>
+      <button data-tab="apple" aria-selected="false">Apple Reminders</button>
+      <button data-tab="tips" aria-selected="false">Tips</button>
+    </div>
+
+    <section data-pane="google">
+      <h3>Connect Google Tasks</h3>
+      <p>The app talks to Google directly from your browser. Google needs a one-time "Client ID" that says this app is allowed to ask for your tasks. Paste it here once on each device.</p>
+      <input type="text" id="clientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="saveClientId">Save and connect</button>
+        <button class="btn" id="disconnectGoogle">Disconnect</button>
+      </div>
+      <p style="margin-top:12px">Google lists show up in the sidebar. Untick a list to hide it. Hidden lists are not changed or deleted.</p>
+    </section>
+
+    <section data-pane="apple" hidden>
+      <h3>How Apple Reminders gets in</h3>
+      <p>Apple doesn't let websites read Reminders. So an iPhone Shortcut reads them and hands them to this app. It is a copy: tick things off in Apple Reminders, then run the Shortcut again to refresh. When Google is connected, the copy is saved to a Google list so your PC sees it too.</p>
+      <h3>Make the Shortcut (once, on your iPhone)</h3>
+      <ol>
+        <li>Open the <b>Shortcuts</b> app, tap <b>+</b>, name it <b>Send Reminders</b>.</li>
+        <li>Add <b>Find Reminders</b>. Set the filter to <i>Is Not Completed</i>.</li>
+        <li>Add <b>Repeat with Each</b>. Inside it add a <b>Text</b> action containing: <code>Title|List|Due Date</code>, picking each word from the <i>Repeat Item</i> variables, with a <code>|</code> between them.</li>
+        <li>After the repeat, add <b>Combine Text</b> (Repeat Results, separator <i>New Lines</i>).</li>
+        <li>Add <b>URL Encode</b> (Encode the Combined Text).</li>
+        <li>Add <b>Open URLs</b> with: <code id="appleUrl"></code> followed by the <i>URL Encoded Text</i> variable.</li>
+        <li>Run it. This app opens and says how many reminders came in.</li>
+      </ol>
+      <h3>Or paste them in</h3>
+      <p>One reminder per line, as <code>Title|List|Due</code> (List and Due are optional).</p>
+      <textarea id="applePaste" rows="4" placeholder="Buy milk|Groceries&#10;Call dentist|Personal|Tomorrow"></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn" id="applePasteBtn">Import</button><button class="btn" id="appleClear">Remove Apple copy</button></div>
+    </section>
+
+    <section data-pane="tips" hidden>
+      <h3>Phone</h3>
+      <p>In Safari, tap Share, then <b>Add to Home Screen</b>. It then opens like an app, straight to the "Add a task" box.</p>
+      <h3>PC</h3>
+      <p>Drag tasks to reorder them or drop them into another list. Click a task's text to rename it. Dragging an Apple reminder into another list makes a copy there.</p>
+      <h3>Where things are saved</h3>
+      <p>Google lists live in your Google account. "Typed here" lists live only in this browser. Once Google is connected, add to a Google list so it shows on both phone and PC.</p>
+    </section>
+
+    <div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn" id="closeSetup">Done</button></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+'use strict';
+// ---------- helpers ----------
+const $ = (s, el = document) => el.querySelector(s);
+const h = (tag, props = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, '');
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) el.append(kid);
+  return el;
+};
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} }
+};
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200); }
+
+const MIRROR = 'Apple Reminders (copy)';
+const prefs = Object.assign({ hidden: {}, showDone: false, target: null }, LS.get('prefs', {}));
+const savePrefs = () => LS.set('prefs', prefs);
+
+// state.lists: [{key, source:'local'|'google'|'apple', id, name, writable, tasks:[] | null}]
+const state = { lists: [], mirrorId: null, loadedAt: 0 };
+const listBy = key => state.lists.find(l => l.key === key);
+const isVisible = l => !prefs.hidden[l.key];
+
+// ---------- Local (typed here) ----------
+const Local = {
+  data() {
+    let d = LS.get('local', null);
+    if (!d) { d = { lists: [{ id: 'inbox', name: 'My tasks' }], tasks: { inbox: [] } }; LS.set('local', d); }
+    return d;
+  },
+  save(d) { LS.set('local', d); },
+  load() {
+    const d = this.data();
+    return d.lists.map(l => ({ key: 'local:' + l.id, source: 'local', id: l.id, name: l.name, writable: true, tasks: (d.tasks[l.id] || []).map(t => ({ ...t })) }));
+  },
+  insertAt(arr, t, prevId) { const i = prevId ? arr.findIndex(x => x.id === prevId) + 1 : 0; arr.splice(i, 0, t); },
+  add(listId, fields, prevId) {
+    const d = this.data(); const arr = (d.tasks[listId] ||= []);
+    const t = { id: uid(), title: fields.title, done: !!fields.done, notes: fields.notes || '', due: fields.due || null };
+    this.insertAt(arr, t, prevId); this.save(d); return t;
+  },
+  update(listId, id, patch) { const d = this.data(); const t = (d.tasks[listId] || []).find(x => x.id === id); if (t) Object.assign(t, patch); this.save(d); },
+  remove(listId, id) { const d = this.data(); d.tasks[listId] = (d.tasks[listId] || []).filter(x => x.id !== id); this.save(d); },
+  move(fromId, id, toId, prevId) {
+    const d = this.data(); const from = d.tasks[fromId] || []; const i = from.findIndex(x => x.id === id); if (i < 0) return;
+    const [t] = from.splice(i, 1); this.insertAt((d.tasks[toId] ||= []), t, prevId); this.save(d);
+  },
+  addList(name) { const d = this.data(); const id = uid(); d.lists.push({ id, name }); d.tasks[id] = []; this.save(d); return id; },
+  removeList(id) { const d = this.data(); d.lists = d.lists.filter(l => l.id !== id); delete d.tasks[id]; this.save(d); }
+};
+
+// ---------- Google Tasks ----------
+const SCOPE = 'https://www.googleapis.com/auth/tasks';
+const G = {
+  client: null,
+  tok: LS.get('gtoken', null), // {access_token, exp}
+  clientId() { return (LS.get('gclient', '') || '').trim(); },
+  ok() { return !!(this.tok && this.tok.exp > Date.now() + 30000); },
+  loadScript() {
+    if (window.google?.accounts?.oauth2) return Promise.resolve();
+    return new Promise((res, rej) => {
+      const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+      s.onload = res; s.onerror = () => rej(new Error('Could not load Google sign-in')); document.head.append(s);
+    });
+  },
+  async connect(interactive = true) {
+    const cid = this.clientId();
+    if (!cid) { openSetup('google'); return; }
+    await this.loadScript();
+    return new Promise(resolve => {
+      this.client = google.accounts.oauth2.initTokenClient({
+        client_id: cid, scope: SCOPE,
+        callback: r => {
+          if (r.error) { toast('Google: ' + r.error); return resolve(false); }
+          this.tok = { access_token: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000 };
+          LS.set('gtoken', this.tok); LS.set('gconsented', true); resolve(true);
+        },
+        error_callback: e => { toast('Google sign-in was closed'); resolve(false); }
+      });
+      this.client.requestAccessToken({ prompt: LS.get('gconsented', false) ? '' : 'consent' });
+    });
+  },
+  disconnect() {
+    if (this.tok && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(this.tok.access_token, () => {});
+    this.tok = null; LS.del('gtoken'); LS.del('gconsented');
+  },
+  async api(path, { method = 'GET', body, query } = {}) {
+    if (!this.ok()) throw new Error('Google is not connected');
+    const url = new URL('https://tasks.googleapis.com/tasks/v1/' + path);
+    for (const [k, v] of Object.entries(query || {})) if (v != null && v !== '') url.searchParams.set(k, v);
+    const r = await fetch(url, { method, headers: { Authorization: 'Bearer ' + this.tok.access_token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 401) { this.tok = null; LS.del('gtoken'); renderSide(); throw new Error('Google sign-in expired. Tap Connect again.'); }
+    if (!r.ok) { let m = ''; try { m = (await r.json()).error?.message || ''; } catch {} throw new Error('Google: ' + (m || r.status)); }
+    if (r.status === 204) return null;
+    const txt = await r.text(); return txt ? JSON.parse(txt) : null;
+  },
+  async lists() {
+    const out = []; let pageToken;
+    do { const r = await this.api('users/@me/lists', { query: { maxResults: 100, pageToken } }); out.push(...(r.items || [])); pageToken = r.nextPageToken; } while (pageToken);
+    return out;
+  },
+  async tasks(listId) {
+    const raw = []; let pageToken;
+    do {
+      const r = await this.api(`lists/${listId}/tasks`, { query: { maxResults: 100, showCompleted: true, showHidden: true, pageToken } });
+      raw.push(...(r.items || [])); pageToken = r.nextPageToken;
+    } while (pageToken);
+    const tasks = raw.filter(t => !t.deleted && (t.title || '').trim() !== '' ).map(t => ({ id: t.id, title: t.title, done: t.status === 'completed', notes: t.notes || '', due: t.due || null, parent: t.parent || null, position: t.position || '' }));
+    const byPos = (a, b) => a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
+    const tops = tasks.filter(t => !t.parent || !tasks.some(p => p.id === t.parent)).sort(byPos);
+    const out = [];
+    for (const t of tops) { out.push(t); out.push(...tasks.filter(c => c.parent === t.id).sort(byPos)); }
+    return out;
+  },
+  add(listId, f, prevId) {
+    return this.api(`lists/${listId}/tasks`, { method: 'POST', query: { previous: prevId }, body: { title: f.title, notes: f.notes || undefined, status: f.done ? 'completed' : 'needsAction', due: f.due || undefined } });
+  },
+  update(listId, id, patch) {
+    const body = {};
+    if ('title' in patch) body.title = patch.title;
+    if ('done' in patch) { body.status = patch.done ? 'completed' : 'needsAction'; if (!patch.done) body.completed = null; }
+    return this.api(`lists/${listId}/tasks/${id}`, { method: 'PATCH', body });
+  },
+  remove(listId, id) { return this.api(`lists/${listId}/tasks/${id}`, { method: 'DELETE' }); },
+  move(fromId, id, toId, prevId) {
+    return this.api(`lists/${fromId}/tasks/${id}/move`, { method: 'POST', query: { previous: prevId, destinationTasklist: toId !== fromId ? toId : undefined } });
+  },
+  addList(title) { return this.api('users/@me/lists', { method: 'POST', body: { title } }); }
+};
+
+// ---------- Apple Reminders (copy via Shortcut) ----------
+const Apple = {
+  local() { return LS.get('apple', null); }, // {at, items:[{title,list,due}]}
+  parse(text) {
+    return text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(line => {
+      const [title, list, due] = line.split('|').map(s => (s || '').trim());
+      return { title, list: list || 'Reminders', due: due || '' };
+    }).filter(r => r.title);
+  },
+  save(items) { const d = { at: Date.now(), items }; LS.set('apple', d); LS.set('appleDirty', true); return d; },
+  noteFor(r) { return `Apple list: ${r.list}` + (r.due ? `\nDue: ${r.due}` : ''); },
+  fromNote(t) {
+    const m = /Apple list: (.*)/.exec(t.notes || ''); const d = /Due: (.*)/.exec(t.notes || '');
+    return { id: t.id, title: t.title, list: m ? m[1].trim() : 'Reminders', due: d ? d[1].trim() : '' };
+  },
+  // Copy the latest phone import into the Google "Apple Reminders (copy)" list so the PC sees it.
+  async pushMirror() {
+    const d = this.local(); if (!d || !LS.get('appleDirty', false) || !G.ok()) return;
+    let id = state.mirrorId;
+    if (!id) { const l = await G.addList(MIRROR); id = state.mirrorId = l.id; }
+    const existing = (await G.tasks(id)).filter(t => !t.done);
+    const key = r => r.title + '\u0000' + r.list;
+    const want = new Map(d.items.map(r => [key(r), r]));
+    const have = new Map(existing.map(t => [key(this.fromNote(t)), t]));
+    const jobs = [];
+    for (const [k, t] of have) if (!want.has(k)) jobs.push(() => G.remove(id, t.id));
+    for (const [k, r] of want) {
+      const t = have.get(k);
+      if (!t) jobs.push(() => G.add(id, { title: r.title, notes: this.noteFor(r) }));
+      else if (t.notes !== this.noteFor(r)) jobs.push(() => G.api(`lists/${id}/tasks/${t.id}`, { method: 'PATCH', body: { notes: this.noteFor(r) } }));
+    }
+    await runLimited(jobs, 4);
+    LS.set('appleDirty', false);
+    if (jobs.length) toast('Apple reminders copied to Google, so your PC sees them');
+  }
+};
+async function runLimited(jobs, n) {
+  let i = 0; const worker = async () => { while (i < jobs.length) { const j = jobs[i++]; await j(); } };
+  await Promise.all(Array.from({ length: Math.min(n, jobs.length) }, worker));
+}
+function appleLists(items, source) {
+  const groups = new Map();
+  for (const r of items) { if (!groups.has(r.list)) groups.set(r.list, []); groups.get(r.list).push(r); }
+  return [...groups].sort((a, b) => a[0].localeCompare(b[0])).map(([name, rs]) => ({
+    key: 'apple:' + name, source: 'apple', id: name, name, writable: false, from: source,
+    tasks: rs.map((r, i) => ({ id: r.id || ('a' + i + '-' + name), title: r.title, done: false, due: r.due, notes: '' }))
+  }));
+}
+
+// ---------- loading ----------
+let loading = false;
+async function refresh() {
+  if (loading) return; loading = true;
+  try {
+    const lists = Local.load();
+    let appleFromGoogle = null;
+    if (G.ok()) {
+      try {
+        const gl = await G.lists();
+        state.mirrorId = gl.find(l => l.title === MIRROR)?.id || null;
+        const old = new Map(state.lists.filter(l => l.source === 'google').map(l => [l.id, l.tasks]));
+        for (const l of gl) if (l.id !== state.mirrorId) lists.push({ key: 'google:' + l.id, source: 'google', id: l.id, name: l.title, writable: true, tasks: old.get(l.id) || null });
+        try { await Apple.pushMirror(); } catch (e) { toast(e.message); }
+        if (state.mirrorId) appleFromGoogle = (await G.tasks(state.mirrorId)).filter(t => !t.done).map(t => Apple.fromNote(t));
+      } catch (e) { toast(e.message); }
+    }
+    const ap = Apple.local();
+    if (appleFromGoogle) lists.push(...appleLists(appleFromGoogle, 'google'));
+    else if (ap) lists.push(...appleLists(ap.items, 'local'));
+    state.lists = lists; state.loadedAt = Date.now();
+    render();
+    await Promise.all(lists.filter(l => l.source === 'google' && isVisible(l)).map(loadGoogleList));
+    render();
+  } finally { loading = false; }
+}
+async function loadGoogleList(l) {
+  try { l.tasks = await G.tasks(l.id); } catch (e) { if (!l.tasks) l.tasks = []; toast(e.message); }
+}
+async function reload(list) {
+  if (list.source === 'local') { const fresh = Local.load().find(x => x.id === list.id); list.tasks = fresh ? fresh.tasks : []; }
+  else if (list.source === 'google') await loadGoogleList(list);
+}
+
+// ---------- actions ----------
+async function createTask(list, f, prevId) {
+  if (list.source === 'local') return Local.add(list.id, f, prevId);
+  if (list.source === 'google') return G.add(list.id, f, prevId);
+  throw new Error("Apple lists can't be changed from here");
+}
+async function deleteTask(list, t) {
+  if (list.source === 'local') return Local.remove(list.id, t.id);
+  if (list.source === 'google') return G.remove(list.id, t.id);
+}
+async function updateTask(list, t, patch) {
+  Object.assign(t, patch); render();
+  try {
+    if (list.source === 'local') Local.update(list.id, t.id, patch);
+    else if (list.source === 'google') await G.update(list.id, t.id, patch);
+  } catch (e) { toast(e.message); await reload(list); render(); }
+}
+async function moveTask(from, to, t, prevId) {
+  if (from.source === 'google' && to.source === 'google') return G.move(from.id, t.id, to.id, prevId);
+  if (from.source === 'local' && to.source === 'local') return Local.move(from.id, t.id, to.id, prevId);
+  await createTask(to, { title: t.title, notes: t.notes, done: t.done, due: from.source === 'google' ? t.due : null }, prevId);
+  if (from.source !== 'apple') await deleteTask(from, t);
+  else toast('Copied. The original stays in Apple Reminders.');
+}
+
+// ---------- rendering ----------
+function writableVisible() { return state.lists.filter(l => l.writable && isVisible(l)); }
+function sideToggle(l) {
+  const cb = h('input', { type: 'checkbox' }); cb.checked = isVisible(l);
+  cb.addEventListener('change', async () => {
+    if (cb.checked) delete prefs.hidden[l.key]; else prefs.hidden[l.key] = true;
+    savePrefs(); render();
+    if (cb.checked && l.source === 'google' && !l.tasks) { await loadGoogleList(l); render(); }
+  });
+  const n = l.tasks ? l.tasks.filter(t => !t.done).length : '';
+  return h('label', { class: 'toggle' }, cb, h('span', { class: 'dot ' + l.source }), h('span', { class: 'nm', text: l.name }), h('span', { class: 'ct', text: String(n) }));
+}
+function renderSide() {
+  const by = s => state.lists.filter(l => l.source === s);
+  $('#localLists').replaceChildren(...by('local').map(sideToggle));
+  $('#googleLists').replaceChildren(...by('google').map(sideToggle));
+  $('#appleLists').replaceChildren(...by('apple').map(sideToggle));
+  const gs = $('#googleStatus');
+  if (G.ok()) gs.replaceChildren(h('button', { class: 'linkbtn', text: '+ New Google list', onclick: newGoogleList }));
+  else if (G.clientId()) gs.replaceChildren(h('div', { class: 'note', text: LS.get('gconsented', false) ? 'Sign-in timed out (Google asks again every hour).' : 'Not connected yet.' }), h('button', { class: 'btn small primary', style: 'margin:4px 6px', text: 'Connect Google', onclick: connectGoogle }));
+  else gs.replaceChildren(h('div', { class: 'note', text: 'Not set up yet.' }), h('button', { class: 'linkbtn', text: 'Set up Google Tasks', onclick: () => openSetup('google') }));
+  const as = $('#appleStatus'); const ap = Apple.local();
+  const when = ap ? new Date(ap.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
+  const fromG = by('apple')[0]?.from === 'google';
+  as.replaceChildren(
+    h('div', { class: 'note', text: by('apple').length ? (fromG ? 'Copy saved in Google.' : 'Copy on this device' + (when ? ', from ' + when : '') + '.') + ' Read only.' : 'Nothing imported yet.' }),
+    h('button', { class: 'linkbtn', text: 'How to bring them in', onclick: () => openSetup('apple') })
+  );
+  $('#showDone').checked = !!prefs.showDone;
+  // quick-add targets
+  const sel = $('#quickTarget'); const opts = writableVisible();
+  if (!opts.some(l => l.key === prefs.target)) prefs.target = (opts.find(l => l.source === 'google') || opts[0])?.key || null;
+  sel.replaceChildren(...opts.map(l => { const o = h('option', { value: l.key, text: l.name + (l.source === 'local' ? ' (this device)' : '') }); o.selected = l.key === prefs.target; return o; }));
+}
+function fmtDue(due) {
+  if (!due) return null;
+  const d = new Date(due);
+  if (isNaN(d)) return { text: due, overdue: false };
+  // Google stores due dates as midnight UTC
+  const day = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return { text: 'Due ' + day.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }), overdue: day < today };
+}
+function taskItem(list, t) {
+  const cb = h('input', { type: 'checkbox', 'aria-label': 'Done' }); cb.checked = t.done;
+  if (!list.writable) { cb.disabled = true; cb.title = 'Tick this off in Apple Reminders'; }
+  cb.addEventListener('change', () => updateTask(list, t, { done: cb.checked }));
+  const title = h('div', { class: 'title', text: t.title });
+  if (list.writable) title.addEventListener('click', () => startEdit(list, t, title));
+  const due = fmtDue(t.due);
+  const body = h('div', { class: 'body' }, title, due ? h('div', { class: 'meta' + (due.overdue && !t.done ? ' overdue' : ''), text: due.text }) : null);
+  const del = list.writable ? h('button', { class: 'del', title: 'Delete', 'aria-label': 'Delete', text: '×', onclick: async () => {
+    list.tasks = list.tasks.filter(x => x !== t); render();
+    try { await deleteTask(list, t); } catch (e) { toast(e.message); await reload(list); render(); }
+  } }) : null;
+  return h('li', { class: 'task' + (t.done ? ' done' : '') + (t.parent ? ' sub' : ''), 'data-id': t.id }, cb, body, del);
+}
+function startEdit(list, t, el) {
+  const inp = h('input', { class: 'edit', value: t.title });
+  let done = false;
+  const finish = save => {
+    if (done) return; done = true;
+    const v = inp.value.trim();
+    if (save && v && v !== t.title) updateTask(list, t, { title: v }); else render();
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); });
+  inp.addEventListener('blur', () => finish(true));
+  el.replaceWith(inp); inp.focus(); inp.select();
+}
+let sortables = [];
+function render() {
+  renderSide();
+  sortables.forEach(s => s.destroy()); sortables = [];
+  const board = $('#board');
+  const vis = state.lists.filter(isVisible);
+  if (!vis.length) { board.replaceChildren(h('div', { class: 'welcome', text: 'All lists are hidden. Tick a list in the sidebar to show it.' })); return; }
+  board.replaceChildren(...vis.map(l => {
+    const tasks = (l.tasks || []).filter(t => prefs.showDone || !t.done);
+    const ul = h('ul', { class: 'tasks', 'data-key': l.key }, ...tasks.map(t => taskItem(l, t)));
+    if (l.tasks === null) ul.append(h('li', { class: 'empty', text: 'Loading…' }));
+    else if (!tasks.length) ul.append(h('li', { class: 'empty', 'data-empty': '1', text: l.writable ? 'Nothing here. Drop a task or add one below.' : 'No open reminders.' }));
+    const sub = l.source === 'apple' ? 'Apple Reminders · read only' : l.source === 'google' ? 'Google Tasks' : 'Typed here · this device';
+    const add = l.writable ? h('form', { class: 'addrow', onsubmit: e => { e.preventDefault(); const i = e.target.firstChild; quickAdd(l, i.value); i.value = ''; } }, h('input', { placeholder: '+ Add to ' + l.name, 'aria-label': 'Add to ' + l.name })) : null;
+    const col = h('section', { class: 'col' },
+      h('div', { class: 'colhead' }, h('span', { class: 'dot ' + l.source }), h('span', { class: 'nm', text: l.name }), h('span', { class: 'ct', text: String((l.tasks || []).filter(t => !t.done).length) })),
+      h('div', { class: 'colsub', text: sub }), ul, add);
+    if (window.Sortable && l.tasks !== null) {
+      sortables.push(Sortable.create(ul, {
+        group: l.writable ? { name: 'tasks', pull: true, put: true } : { name: 'tasks', pull: 'clone', put: false },
+        sort: l.writable, animation: 150, delay: 180, delayOnTouchOnly: true, ghostClass: 'ghost', chosenClass: 'chosen',
+        filter: '.empty, input, .del', preventOnFilter: false, draggable: 'li.task', onEnd: onDrop
+      }));
+    }
+    return col;
+  }));
+}
+
+async function onDrop(evt) {
+  const from = listBy(evt.from.dataset.key), to = listBy(evt.to.dataset.key);
+  const id = evt.item.dataset.id;
+  if (!from || !to || (from === to && evt.oldIndex === evt.newIndex)) return;
+  const t = from.tasks.find(x => x.id === id); if (!t) return render();
+  const ids = [...evt.to.children].map(li => li.dataset.id).filter(Boolean);
+  const i = ids.indexOf(id);
+  let prevId = null;
+  for (let j = i - 1; j >= 0; j--) { const p = to.tasks.find(x => x.id === ids[j]); if (p && p !== t) { prevId = p.parent && to.source === 'google' ? p.parent : p.id; break; } }
+  // optimistic update so the screen doesn't jump
+  const moved = { ...t, parent: null };
+  if (from.source !== 'apple') from.tasks = from.tasks.filter(x => x !== t);
+  if (from === to) from.tasks = from.tasks.filter(x => x.id !== id);
+  const k = prevId ? to.tasks.findIndex(x => x.id === prevId) + 1 : 0;
+  to.tasks.splice(k, 0, from.source === 'apple' ? { ...moved, id: 'tmp' + uid() } : moved);
+  render();
+  try { await moveTask(from, to, t, prevId); } catch (e) { toast(e.message); }
+  await Promise.all([...new Set([from, to])].filter(l => l.source !== 'apple').map(reload));
+  render();
+}
+async function quickAdd(list, title) {
+  title = (title || '').trim(); if (!title || !list) return;
+  const temp = { id: 'tmp' + uid(), title, done: false };
+  list.tasks = [temp, ...(list.tasks || [])]; render();
+  try { await createTask(list, { title }, null); toast('Added to ' + list.name); } catch (e) { toast(e.message); }
+  await reload(list); render();
+}
+async function connectGoogle() { if (await G.connect()) { toast('Google connected'); await refresh(); } }
+async function newGoogleList() {
+  const name = prompt('Name for the new Google list'); if (!name || !name.trim()) return;
+  try { await G.addList(name.trim()); await refresh(); } catch (e) { toast(e.message); }
+}
+
+// ---------- setup dialog ----------
+function openSetup(tab = 'google') {
+  $('#clientId').value = G.clientId();
+  $('#appleUrl').textContent = location.origin + location.pathname + '#apple=';
+  selectTab(tab); const d = $('#setup'); if (!d.open) d.showModal();
+}
+function selectTab(tab) {
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== tab);
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => selectTab(b.dataset.tab)));
+$('#closeSetup').addEventListener('click', () => $('#setup').close());
+$('#openSetup').addEventListener('click', () => { closeMenu(); openSetup('google'); });
+$('#saveClientId').addEventListener('click', async () => {
+  const v = $('#clientId').value.trim();
+  if (!/\.apps\.googleusercontent\.com$/.test(v)) { toast('That doesn’t look like a Google Client ID'); return; }
+  LS.set('gclient', v); $('#setup').close(); await connectGoogle();
+});
+$('#disconnectGoogle').addEventListener('click', async () => { G.disconnect(); $('#setup').close(); toast('Google disconnected'); await refresh(); });
+$('#applePasteBtn').addEventListener('click', async () => {
+  const items = Apple.parse($('#applePaste').value);
+  if (!items.length) { toast('Nothing to import'); return; }
+  Apple.save(items); $('#applePaste').value = ''; $('#setup').close(); toast(`Imported ${items.length} reminders`); await refresh();
+});
+$('#appleClear').addEventListener('click', async () => {
+  LS.del('apple'); LS.del('appleDirty');
+  if (G.ok() && state.mirrorId) { try { await G.api(`users/@me/lists/${state.mirrorId}`, { method: 'DELETE' }); state.mirrorId = null; } catch (e) { toast(e.message); } }
+  $('#setup').close(); toast('Apple copy removed'); await refresh();
+});
+
+// ---------- wiring ----------
+$('#quick').addEventListener('submit', e => { e.preventDefault(); const i = $('#quickInput'); quickAdd(listBy($('#quickTarget').value), i.value); i.value = ''; i.focus(); });
+$('#quickTarget').addEventListener('change', e => { prefs.target = e.target.value; savePrefs(); });
+$('#showDone').addEventListener('change', e => { prefs.showDone = e.target.checked; savePrefs(); render(); });
+$('#refreshBtn').addEventListener('click', () => refresh().then(() => toast('Up to date')));
+$('#newLocal').addEventListener('click', () => { const n = prompt('Name for the new list'); if (n && n.trim()) { Local.addList(n.trim()); refresh(); } });
+const closeMenu = () => $('#app').classList.remove('open');
+$('#menuBtn').addEventListener('click', () => $('#app').classList.toggle('open'));
+$('#scrim').addEventListener('click', closeMenu);
+window.addEventListener('hashchange', () => { if (location.hash.startsWith('#apple=')) { importFromHash(); refresh(); } });
+window.addEventListener('focus', () => { if (Date.now() - state.loadedAt > 60000) refresh(); });
+
+function importFromHash() {
+  const m = /^#apple=(.*)$/s.exec(location.hash); if (!m) return;
+  let text = m[1]; try { text = decodeURIComponent(text); } catch {}
+  const items = Apple.parse(text);
+  history.replaceState(null, '', location.pathname + location.search);
+  if (items.length) { Apple.save(items); toast(`Imported ${items.length} reminders from Apple`); }
+  else toast('The Shortcut sent no reminders');
+}
+
+importFromHash();
+refresh();
+if (!G.ok() && G.clientId() && LS.get('gconsented', false)) { /* token expired: wait for a tap, since browsers block pop-ups without one */ }
+if (matchMedia('(min-width:761px)').matches) $('#quickInput').focus();
+</script>
+</body>
+</html>
