@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><title>All My Tasks</title>
+<script>
+// If a Shortcut escaped the "#" (as %23), send it back to the app with the data intact.
+var p = location.pathname, i = p.toLowerCase().indexOf('%23');
+if (p.indexOf('/todo/') === 0 && i >= 0) location.replace('/todo/#' + p.slice(i + 3) + location.search);
+else location.replace('/todo/');
+</script>

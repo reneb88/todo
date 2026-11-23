@@ -225,13 +225,11 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       <h3>Make the Shortcut (once, on your iPhone)</h3>
       <ol>
         <li>Open the <b>Shortcuts</b> app, tap <b>+</b>, name it <b>Send Reminders</b>.</li>
-        <li>Add <b>Find Reminders</b>. Add the filter <i>Is Completed is No</i>, and turn on <b>Limit</b> (300).</li>
+        <li>Add <b>Find Reminders</b>. Add the filter <i>Is Completed is No</i>.</li>
         <li>Add <b>Combine Text</b>: combine <i>Reminders</i> with <i>New Lines</i>.</li>
-        <li>Add <b>URL Encode</b> (Encode the Combined Text).</li>
-        <li>Add a <b>URL</b> action with: <code id="appleUrl"></code> followed by the <i>URL Encoded Text</i> variable.</li>
-        <li>Add <b>Open URLs</b>.</li>
-        <li>Very long list? Use <b>Copy to Clipboard</b> instead of the last three steps, then paste below.</li>
-        <li>Run it. This app opens and says how many reminders came in.</li>
+        <li>Add <b>Copy to Clipboard</b>.</li>
+        <li>Add <b>Open URLs</b> with: <code id="appleUrl"></code></li>
+        <li>Run it. This app opens with a <b>Paste</b> button. Tap it.</li>
       </ol>
       <h3>Or paste them in</h3>
       <p>One reminder per line, as <code>Title|List|Due</code> (List and Due are optional).</p>
@@ -531,6 +529,7 @@ function renderSide() {
   const fromG = by('apple')[0]?.from === 'google';
   as.replaceChildren(
     h('div', { class: 'note', text: by('apple').length ? (fromG ? 'Copy saved in Google.' : 'Copy on this device' + (when ? ', from ' + when : '') + '.') + ' Read only.' : 'Nothing imported yet.' }),
+    h('button', { class: 'linkbtn', text: 'Paste copied reminders', onclick: () => { closeMenu(); pasteReminders(); } }),
     h('button', { class: 'linkbtn', text: 'How to bring them in', onclick: () => openSetup('apple') })
   );
   $('#showDone').checked = !!prefs.showDone;
@@ -627,6 +626,9 @@ function bestCopy(g) {
 }
 function renderBanner() {
   const b = $('#banner'); const kids = [];
+  if (pastePending) kids.push(h('div', { class: 'banner apple' },
+    h('div', { class: 'msg' }, h('b', { text: 'Your reminders are copied' }), 'Tap Paste, then tap "Paste" again if your iPhone asks.'),
+    h('button', { class: 'btn primary', text: 'Paste', onclick: pasteReminders })));
   if (!G.ok()) {
     const timedOut = G.clientId() && LS.get('gconsented', false);
     kids.push(h('div', { class: 'banner' },
@@ -756,7 +758,7 @@ async function newGoogleList() {
 // ---------- setup dialog ----------
 function openSetup(tab = 'google') {
   $('#clientId').value = G.clientId();
-  $('#appleUrl').textContent = location.origin + location.pathname + '#apple=';
+  $('#appleUrl').textContent = location.origin + location.pathname + '#paste';
   selectTab(tab); const d = $('#setup'); if (!d.open) d.showModal();
 }
 function selectTab(tab) {
@@ -792,10 +794,19 @@ $('#newLocal').addEventListener('click', () => { const n = prompt('Name for the 
 const closeMenu = () => $('#app').classList.remove('open');
 $('#menuBtn').addEventListener('click', () => $('#app').classList.toggle('open'));
 $('#scrim').addEventListener('click', closeMenu);
-window.addEventListener('hashchange', () => { if (location.hash.startsWith('#apple=')) { importFromHash(); refresh(); } });
+window.addEventListener('hashchange', () => { if (/^#(apple=|paste)/.test(location.hash)) { importFromHash(); refresh(); } });
 window.addEventListener('focus', () => { if (Date.now() - state.loadedAt > 60000) refresh(); });
 
+let pastePending = false;
+async function pasteReminders() {
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch { text = ''; }
+  const items = Apple.parse(text);
+  if (!items.length) { pastePending = false; openSetup('apple'); $('#applePaste').focus(); toast('Could not read the clipboard. Paste into the box instead.'); return; }
+  pastePending = false; Apple.save(items); toast(`Imported ${items.length} reminders from Apple`); await refresh();
+}
 function importFromHash() {
+  if (/^#paste/.test(location.hash)) { history.replaceState(null, '', location.pathname + location.search); pastePending = true; render(); return; }
   const m = /^#apple=(.*)$/s.exec(location.hash); if (!m) return;
   let text = m[1]; try { text = decodeURIComponent(text); } catch {}
   const items = Apple.parse(text);
