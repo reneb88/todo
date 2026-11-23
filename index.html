@@ -111,6 +111,10 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .dupgroup .t{font-weight:600;margin-bottom:4px}
 .dupgroup label{display:flex;align-items:center;gap:8px;font-size:14px;padding:3px 0;color:var(--ink)}
 .dupgroup .ro{font-size:13px;color:var(--muted);padding:3px 0 0 26px}
+.banner{margin:12px 18px 0;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--google);border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow)}
+.banner.apple{border-left-color:var(--apple)}
+.banner .msg{flex:1;min-width:200px;font-size:14px}
+.banner .msg b{display:block;font-size:15px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:calc(100vw - 32px)}
 .toast.show{opacity:1}
 .scrim{display:none}
@@ -125,6 +129,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
   .top .ttl{display:block}
   .quick{order:3;flex-basis:100%}
   .bar{padding:10px 12px 0}
+  .banner{margin:10px 12px 0}
   .board{flex-direction:column;align-items:stretch;padding:12px 12px calc(40px + env(safe-area-inset-bottom));gap:12px}
   .col{width:auto;max-height:none}
   ul.tasks{overflow:visible}
@@ -180,6 +185,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
       </div>
       <div class="dupnote" id="dupnote"></div>
     </div>
+    <div id="banner"></div>
     <div class="board" id="board"></div>
   </main>
 </div>
@@ -310,11 +316,13 @@ const Local = {
 };
 
 // ---------- Google Tasks ----------
+// Your Google Client ID (not a secret: it only says which app is asking). Built in so each device only needs to tap Connect.
+const DEFAULT_CLIENT_ID = '';
 const SCOPE = 'https://www.googleapis.com/auth/tasks';
 const G = {
   client: null,
   tok: LS.get('gtoken', null), // {access_token, exp}
-  clientId() { return (LS.get('gclient', '') || '').trim(); },
+  clientId() { return (LS.get('gclient', '') || DEFAULT_CLIENT_ID || '').trim(); },
   ok() { return !!(this.tok && this.tok.exp > Date.now() + 30000); },
   loadScript() {
     if (window.google?.accounts?.oauth2) return Promise.resolve();
@@ -573,6 +581,7 @@ function render() {
   const vis = state.lists.filter(isVisible);
   document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === prefs.view)));
   renderDupNote();
+  renderBanner();
   if (!vis.length) { board.replaceChildren(h('div', { class: 'welcome', text: 'All lists are hidden. Tick a list in the sidebar to show it.' })); return; }
   if (prefs.view === 'all') return renderAll(board);
   board.replaceChildren(...vis.map(l => {
@@ -614,6 +623,20 @@ function bestCopy(g) {
   const w = g.copies.filter(c => c.list.writable);
   const score = c => (c.list.source === 'google' ? 2 : 0) + (c.task.due ? 1 : 0);
   return w.reduce((a, b) => score(b) > score(a) ? b : a, w[0]);
+}
+function renderBanner() {
+  const b = $('#banner'); const kids = [];
+  if (!G.ok()) {
+    const timedOut = G.clientId() && LS.get('gconsented', false);
+    kids.push(h('div', { class: 'banner' },
+      h('div', { class: 'msg' }, h('b', { text: timedOut ? 'Google sign-in timed out' : 'Connect Google Tasks' }), timedOut ? 'Google asks again every hour. Tap Connect to see your lists.' : 'Show your Google lists here, on this device.'),
+      h('button', { class: 'btn primary', text: 'Connect', onclick: connectGoogle })));
+  } else if (!state.lists.some(l => l.source === 'apple')) {
+    kids.push(h('div', { class: 'banner apple' },
+      h('div', { class: 'msg' }, h('b', { text: 'Bring in Apple Reminders' }), 'Uses a Shortcut you make once in the iPhone Shortcuts app.'),
+      h('button', { class: 'btn', text: 'Show me how', onclick: () => openSetup('apple') })));
+  }
+  b.replaceChildren(...kids);
 }
 function renderDupNote() {
   const n = dupGroups().length; const el = $('#dupnote');
